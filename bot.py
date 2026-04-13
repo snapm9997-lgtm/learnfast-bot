@@ -12,7 +12,7 @@ URL = f"https://api.telegram.org/bot{TOKEN}"
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 
 # Модель - автоматический выбор работающей
-MODEL = "openrouter/free"
+MODEL = "qwen/qwen-2.5-72b-instruct:free"
 
 # Словарь для хранения истории диалогов
 chat_histories = {}
