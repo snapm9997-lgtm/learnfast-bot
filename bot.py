@@ -18,7 +18,7 @@ OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 # - "microsoft/phi-3-mini-128k-instruct:free" — Phi-3 (маленький, быстрый)
 # - "qwen/qwen-2.5-7b-instruct:free" — Qwen (хороший русский)
 # - "deepseek/deepseek-chat:free" — DeepSeek (мощный)
-MODEL = "deepseek/deepseek-chat:free"
+MODEL = "openrouter/free"
 
 # Словарь для хранения истории диалогов
 chat_histories = {}
