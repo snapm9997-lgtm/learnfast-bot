@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import json
 
 app = Flask(__name__)
 
@@ -8,19 +9,16 @@ app = Flask(__name__)
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 URL = f"https://api.telegram.org/bot{TOKEN}"
 
-# Настройки OpenRouter
-OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
-
-# Модель - автоматический выбор работающей
-
-MODEL = "qwen/qwen3.6-plus-preview:free"
-# Словарь для хранения истории диалогов
+# Хранилище истории диалогов
 chat_histories = {}
+
+# URL для Puter.js AI Gateway (работает с Qwen)
+PUTER_AI_URL = "https://ai.puter.com/api/v1/chat/completions"
 
 @app.route('/', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
-        return "Bot is running with OpenRouter!"
+        return "Bot is running with Qwen (free via Puter.js)!"
     
     if request.is_json:
         update = request.get_json()
@@ -29,7 +27,7 @@ def webhook():
             chat_id = str(update['message']['chat']['id'])
             user_text = update['message'].get('text', '')
             
-            # Пропускаем команды, но обрабатываем /clear отдельно
+            # Обработка команды /clear
             if user_text == '/clear':
                 if chat_id in chat_histories:
                     del chat_histories[chat_id]
@@ -48,8 +46,8 @@ def webhook():
             chat_histories[chat_id].append({"role": "user", "content": user_text})
             
             try:
-                # Запрос к OpenRouter
-                answer = ask_openrouter(chat_histories[chat_id])
+                # Запрос к Qwen через Puter.js
+                answer = ask_qwen_puter(chat_histories[chat_id])
                 
                 # Добавляем ответ в историю
                 chat_histories[chat_id].append({"role": "assistant", "content": answer})
@@ -65,41 +63,46 @@ def webhook():
     
     return jsonify({"status": "ok"})
 
-def ask_openrouter(messages):
-    """Отправляет запрос к OpenRouter"""
+def ask_qwen_puter(messages):
+    """Отправляет запрос к Qwen через Puter.js (бесплатно, без ключей)"""
     
+    # Системный промпт
     system_prompt = {
         "role": "system",
         "content": """Ты — умный и дружелюбный ИИ-помощник для учёбы и работы.
-Отвечай полезно, понятно и по делу. Помогай с учебой и работой."""
+Ты отлично знаешь русский язык. Отвечай полезно, понятно и по делу.
+Помогай с учебой (объясняй темы, решай задачи) и с работой (письма, отчёты, идеи)."""
     }
     
     full_messages = [system_prompt] + messages
     
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
+    # Формат запроса как в OpenAI API
     data = {
-        "model": MODEL,
+        "model": "qwen/qwen3.5-397b-a17b",  # Огромная модель Qwen 3.5 на 397B параметров[citation:1]
         "messages": full_messages,
         "temperature": 0.7,
         "max_tokens": 2000,
+        "stream": False
     }
     
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # Отправляем запрос на публичный API Puter
     response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
+        PUTER_AI_URL,
         headers=headers,
         json=data,
-        timeout=60
+        timeout=120
     )
     
     if response.status_code == 200:
         result = response.json()
+        # Puter возвращает в стандартном OpenAI формате
         return result['choices'][0]['message']['content']
     else:
-        raise Exception(f"Ошибка {response.status_code}: {response.text}")
+        raise Exception(f"Ошибка Puter API: {response.status_code} - {response.text}")
 
 def send_message(chat_id, text):
     """Отправляет сообщение в Telegram"""
