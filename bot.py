@@ -5,107 +5,53 @@ import os
 app = Flask(__name__)
 
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-URL = f"https://api.telegram.org/bot{TOKEN}"
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 
-# МЕНЯЕМ МОДЕЛЬ НА СТАБИЛЬНУЮ Llama 4
+# Стабильная бесплатная модель
 MODEL = "meta-llama/llama-4-maverick:free"
 
-# Здесь будет URL твоего будущего Mini App
-# Пока оставим заглушку, но ссылка уже есть
+URL = f"https://api.telegram.org/bot{TOKEN}"
 MINI_APP_URL = "https://learnfast-bot.vercel.app/miniapp"
 
-chat_histories = {}
-
+# --------------------- TELEGRAM WEBHOOT ---------------------
 @app.route('/', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
-        return "Bot is running! Use /app to open Mini App."
-    
+        return "✅ Бот и Mini App работают"
+
     if request.is_json:
         update = request.get_json()
-        
         if 'message' in update:
             chat_id = str(update['message']['chat']['id'])
-            user_text = update['message'].get('text', '')
-            
-            if user_text == '/start':
+            text = update['message'].get('text', '')
+
+            if text == '/start':
                 keyboard = {
                     "inline_keyboard": [[{
-                        "text": "🚀 Открыть приложение LearnFast",
+                        "text": "🚀 Открыть Mini App",
                         "web_app": {"url": MINI_APP_URL}
                     }]]
                 }
-                send_message(chat_id, "Привет! Я — твой ИИ-помощник для бизнеса. Нажми на кнопку ниже, чтобы открыть приложение и начать работу.", reply_markup=keyboard)
+                send_message(
+                    chat_id,
+                    "🤖 Привет! Я — ИИ-помощник для бизнеса.\n👇 Нажми на кнопку, чтобы открыть приложение:",
+                    keyboard
+                )
                 return jsonify({"status": "ok"})
-            
-            if user_text == '/app':
-                keyboard = {
-                    "inline_keyboard": [[{
-                        "text": "🚀 Открыть приложение",
-                        "web_app": {"url": MINI_APP_URL}
-                    }]]
-                }
-                send_message(chat_id, "Открыть приложение:", reply_markup=keyboard)
-                return jsonify({"status": "ok"})
-            
-            # Обработка сообщений из чата с ботом (пока оставим)
-            if user_text == '/clear':
-                if chat_id in chat_histories:
-                    del chat_histories[chat_id]
-                send_message(chat_id, "🧹 История диалога очищена!")
-                return jsonify({"status": "ok"})
-            
-            # ... здесь остальная логика для ответов в чате ...
-            # (оставлю как было, но основной фокус на Mini App)
-            
+
+            send_message(chat_id, "Используй кнопку, чтобы открыть приложение 👆")
     return jsonify({"status": "ok"})
 
-def ask_model(messages):
-    system_prompt = {
-        "role": "system",
-        "content": "Ты — профессиональный ИИ-ассистент для бизнеса. Твоя задача: помогать с маркетингом, продажами, написанием писем, генерацией идей для контента. Отвечай четко, по делу и предлагай готовые решения."
-    }
-    full_messages = [system_prompt] + messages
-    
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
-        json={"model": MODEL, "messages": full_messages, "temperature": 0.7, "max_tokens": 2000},
-        timeout=60
-    )
-    
-    if response.status_code == 200:
-        return response.json()['choices'][0]['message']['content']
-    else:
-        raise Exception(f"Ошибка {response.status_code}: {response.text}")
-
-def send_message(chat_id, text, reply_markup=None):
-    try:
-        payload = {"chat_id": chat_id, "text": text}
-        if reply_markup:
-            payload["reply_markup"] = reply_markup
-        if len(text) > 4000:
-            for i in range(0, len(text), 4000):
-                requests.post(f"{URL}/sendMessage", json={**payload, "text": text[i:i+4000]})
-        else:
-            requests.post(f"{URL}/sendMessage", json=payload)
-    except Exception as e:
-        print(f"Ошибка отправки: {e}")
-
-if __name__ == "__main__":
-    app.run()
-# ... (предыдущий код)
-
+# --------------------- MINI APP СТРАНИЦА ---------------------
 @app.route('/miniapp')
 def miniapp():
     return '''
     <!DOCTYPE html>
-    <html lang="ru">
+    <html>
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-        <title>LearnFast | ИИ для бизнеса</title>
+        <title>LearnFast Business</title>
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
             * {
@@ -114,7 +60,7 @@ def miniapp():
                 box-sizing: border-box;
             }
             body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 background: var(--tg-theme-bg-color, #ffffff);
                 color: var(--tg-theme-text-color, #000000);
                 height: 100vh;
@@ -125,7 +71,7 @@ def miniapp():
                 padding: 16px;
                 background: var(--tg-theme-secondary-bg-color, #f0f0f0);
                 text-align: center;
-                border-bottom: 1px solid var(--tg-theme-hint-color, #cccccc);
+                border-bottom: 1px solid var(--tg-theme-hint-color, #ccc);
             }
             .header h1 {
                 font-size: 20px;
@@ -153,20 +99,19 @@ def miniapp():
                 max-width: 85%;
                 padding: 10px 14px;
                 border-radius: 18px;
-                word-wrap: break-word;
                 font-size: 15px;
                 line-height: 1.4;
             }
             .message.user {
                 align-self: flex-end;
                 background: var(--tg-theme-button-color, #2481cc);
-                color: var(--tg-theme-button-text-color, #fff);
+                color: white;
                 border-bottom-right-radius: 4px;
             }
             .message.assistant {
                 align-self: flex-start;
                 background: var(--tg-theme-secondary-bg-color, #e9ecef);
-                color: var(--tg-theme-text-color, #000);
+                color: black;
                 border-bottom-left-radius: 4px;
             }
             .input-area {
@@ -182,7 +127,6 @@ def miniapp():
                 border: none;
                 border-radius: 24px;
                 background: var(--tg-theme-bg-color, #fff);
-                color: var(--tg-theme-text-color, #000);
                 font-size: 15px;
                 resize: none;
                 font-family: inherit;
@@ -194,12 +138,9 @@ def miniapp():
                 border: none;
                 border-radius: 50%;
                 background: var(--tg-theme-button-color, #2481cc);
-                color: var(--tg-theme-button-text-color, #fff);
+                color: white;
                 font-size: 20px;
                 cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
             }
             .features {
                 display: flex;
@@ -216,29 +157,25 @@ def miniapp():
                 border: none;
                 border-radius: 20px;
                 background: var(--tg-theme-bg-color, #fff);
-                color: var(--tg-theme-text-color, #000);
                 font-size: 12px;
                 cursor: pointer;
-                transition: all 0.2s;
             }
         </style>
     </head>
     <body>
         <div class="header">
             <h1>📊 LearnFast Business</h1>
-            <p>ИИ-агент для маркетинга, продаж и контента</p>
+            <p>ИИ для маркетинга, продаж и контента</p>
         </div>
         <div class="chat-container">
             <div class="messages" id="messages">
                 <div class="message assistant">
-                    Привет! Я твой ИИ-агент для бизнеса. Чем могу помочь?
-                    
-                    ✅ Написать письмо клиенту
-                    ✅ Придумать пост для Telegram
-                    ✅ Проанализировать отзывы
-                    ✅ Составить оффер
-                    
-                    Просто опиши задачу!
+                    Привет! Я твой ИИ-агент для бизнеса.<br><br>
+                    ✅ Написать письмо клиенту<br>
+                    ✅ Пост для Telegram<br>
+                    ✅ Анализ отзывов<br>
+                    ✅ Оффер и SWOT<br><br>
+                    Просто напиши задачу!
                 </div>
             </div>
             <div class="input-area">
@@ -247,82 +184,125 @@ def miniapp():
             </div>
         </div>
         <div class="features">
-            <button class="feature-btn" data-prompt="Напиши продающий пост для Telegram о [товаре/услуге]">📱 Пост в TG</button>
-            <button class="feature-btn" data-prompt="Напиши холодное письмо клиенту, который хочет [услуга]">✉️ Письмо</button>
-            <button class="feature-btn" data-prompt="Составь оффер для [ниша]">🎯 Оффер</button>
-            <button class="feature-btn" data-prompt="Сделай SWOT-анализ для [бизнес-идея]">📊 SWOT</button>
+            <button class="feature-btn" data-prompt="Напиши продающий пост для Telegram о моём продукте">📱 Пост в TG</button>
+            <button class="feature-btn" data-prompt="Напиши холодное письмо для клиента">✉️ Письмо</button>
+            <button class="feature-btn" data-prompt="Сделай SWOT-анализ для моего бизнеса">📊 SWOT</button>
         </div>
+
         <script>
             const tg = window.Telegram.WebApp;
             tg.expand();
             tg.enableClosingConfirmation();
-            
-            const messagesContainer = document.getElementById('messages');
+
+            const messagesDiv = document.getElementById('messages');
             const userInput = document.getElementById('userInput');
             const sendBtn = document.getElementById('sendBtn');
-            
+
             let isLoading = false;
-            
+
             function addMessage(text, sender) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${sender}`;
-                messageDiv.textContent = text;
-                messagesContainer.appendChild(messageDiv);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                return messageDiv;
+                const msg = document.createElement('div');
+                msg.className = `message ${sender}`;
+                msg.textContent = text;
+                messagesDiv.appendChild(msg);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                return msg;
             }
-            
-            async function sendToBot(message) {
+
+            async function sendMessageToBot(text) {
                 if (isLoading) return;
-                
-                addMessage(message, 'user');
+                addMessage(text, 'user');
                 userInput.value = '';
-                
                 isLoading = true;
+
                 const loadingMsg = addMessage('✍️ Печатает...', 'assistant');
-                
+
                 try {
-                    const response = await fetch('/chat', {
+                    const res = await fetch('/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ message: message })
+                        body: JSON.stringify({ message: text })
                     });
-                    
-                    const data = await response.json();
+                    const data = await res.json();
                     loadingMsg.remove();
-                    addMessage(data.reply, 'assistant');
-                    
-                } catch (error) {
+                    addMessage(data.reply || '❌ Ошибка', 'assistant');
+                } catch (err) {
                     loadingMsg.remove();
-                    addMessage('❌ Ошибка. Попробуй позже.', 'assistant');
+                    addMessage('❌ Ошибка сервера', 'assistant');
                 }
-                
                 isLoading = false;
             }
-            
-            sendBtn.addEventListener('click', () => {
+
+            sendBtn.onclick = () => {
                 const text = userInput.value.trim();
-                if (text) sendToBot(text);
-            });
-            
+                if (text) sendMessageToBot(text);
+            };
+
             userInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     const text = userInput.value.trim();
-                    if (text) sendToBot(text);
+                    if (text) sendMessageToBot(text);
                 }
             });
-            
+
             document.querySelectorAll('.feature-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    let prompt = btn.dataset.prompt;
-                    userInput.value = prompt;
+                btn.onclick = () => {
+                    userInput.value = btn.dataset.prompt;
                     userInput.focus();
-                });
+                };
             });
-            
+
             tg.ready();
         </script>
     </body>
     </html>
     '''
+
+# --------------------- ЧАТ ДЛЯ MINI APP ---------------------
+@app.route('/chat', methods=['POST'])
+def chat_endpoint():
+    data = request.get_json()
+    user_message = data.get('message', '')
+
+    system_prompt = {
+        "role": "system",
+        "content": "Ты — ИИ-помощник для бизнеса. Помогаешь с маркетингом, продажами, письмами, контентом. Отвечай чётко и по делу."
+    }
+
+    try:
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": MODEL,
+                "messages": [system_prompt, {"role": "user", "content": user_message}],
+                "temperature": 0.7,
+                "max_tokens": 2000
+            },
+            timeout=60
+        )
+
+        if resp.status_code == 200:
+            reply = resp.json()['choices'][0]['message']['content']
+            return jsonify({"reply": reply})
+        else:
+            return jsonify({"reply": f"Ошибка API: {resp.status_code}"}), 500
+    except Exception as e:
+        return jsonify({"reply": f"Ошибка: {str(e)}"}), 500
+
+# --------------------- ОТПРАВКА СООБЩЕНИЙ ---------------------
+def send_message(chat_id, text, reply_markup=None):
+    try:
+        payload = {"chat_id": chat_id, "text": text}
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        requests.post(f"{URL}/sendMessage", json=payload)
+    except Exception as e:
+        print("Ошибка отправки:", e)
+
+if __name__ == "__main__":
+    app.run()
