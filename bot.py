@@ -7,13 +7,13 @@ app = Flask(__name__)
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 
-# Стабильная бесплатная модель
-MODEL = "meta-llama/llama-4-maverick:free"
+# ИСПРАВЛЕНО: Используем умный роутер, который сам найдет работающую модель
+MODEL = "openrouter/free"
 
 URL = f"https://api.telegram.org/bot{TOKEN}"
 MINI_APP_URL = "https://learnfast-bot.vercel.app/miniapp"
 
-# --------------------- TELEGRAM WEBHOOT ---------------------
+# --------------------- TELEGRAM WEBHOOK ---------------------
 @app.route('/', methods=['POST', 'GET'])
 def webhook():
     if request.method == 'GET':
