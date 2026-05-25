@@ -1,14 +1,26 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import random
 
 app = Flask(__name__)
 
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 
-# ФИКСИРОВАННАЯ УМНАЯ МОДЕЛЬ (самая мощная из бесплатных)
-MODEL = "google/gemini-2.0-flash-exp:free"
+# -------- РАБОЧИЕ БЕСПЛАТНЫЕ МОДЕЛИ (май 2026) --------
+# openrouter/free - умный роутер, сам выбирает лучшую доступную модель
+# Плюс список конкретных моделей для надёжности
+FREE_MODELS = [
+    "openrouter/free",                          # Умный роутер (рекомендую)
+    "google/gemma-4-31b-it:free",               # Gemma 4 от Google
+    "nvidia/nemotron-3-super-120b-a12b:free",   # NVIDIA Nemotron Super
+    "z-ai/glm-4.5-air:free",                   # GLM 4.5 Air
+    "openai/gpt-oss-120b:free",                # GPT-OSS от OpenAI
+    "deepseek/deepseek-chat-v3-0324:free",     # DeepSeek V3
+]
+
+CURRENT_MODEL = "openrouter/free"  # Используем умный роутер
 
 URL = f"https://api.telegram.org/bot{TOKEN}"
 MINI_APP_URL = "https://learnfast-bot.vercel.app/miniapp"
@@ -192,7 +204,7 @@ def miniapp():
                     <li>🛠️ Помогать с запуском продуктов</li>
                     <li>📄 Пересказывать и структурировать текст</li>
                     <li>🌍 Переводить на любые языки</li>
-                    <li>🧠 Работает с Gemini 2.0 — умная нейросеть</li>
+                    <li>🧠 Умная нейросеть (автовыбор лучшей модели)</li>
                 </ul>
             </div>
 
@@ -206,7 +218,7 @@ def miniapp():
                 </div>
             </div>
             <div class="status">
-                ⚡ Модель: Google Gemini 2.0 Flash
+                ⚡ Модель: умный роутер (автовыбор)
             </div>
         </div>
 
@@ -276,6 +288,7 @@ def chat_endpoint():
     system_prompt = {
         "role": "system",
         "content": """Ты — экспертный ИИ-помощник для бизнеса, маркетинга и предпринимателей.
+
 Твои качества:
 - Отвечаешь максимально полезно, конкретно и без воды
 - Даёшь готовые решения, а не общие слова
@@ -285,6 +298,9 @@ def chat_endpoint():
 - Отвечаешь дружелюбно, но профессионально"""
     }
 
+    # Пробуем основную модель
+    model_to_try = CURRENT_MODEL
+
     try:
         resp = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -293,7 +309,7 @@ def chat_endpoint():
                 "Content-Type": "application/json"
             },
             json={
-                "model": MODEL,
+                "model": model_to_try,
                 "messages": [system_prompt, {"role": "user", "content": user_message}],
                 "temperature": 0.7,
                 "max_tokens": 2500
@@ -301,11 +317,33 @@ def chat_endpoint():
             timeout=90
         )
 
-        if resp.status_code == 200:
-            reply = resp.json()['choices'][0]['message']['content']
-            return jsonify({"reply": reply})
-        else:
+        # Если основная модель не сработала, пробуем по очереди другие
+        if resp.status_code != 200:
+            for fallback_model in FREE_MODELS[1:]:  # Пропускаем первый (уже пробовали)
+                try:
+                    resp2 = requests.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": fallback_model,
+                            "messages": [system_prompt, {"role": "user", "content": user_message}],
+                            "temperature": 0.7,
+                            "max_tokens": 2500
+                        },
+                        timeout=90
+                    )
+                    if resp2.status_code == 200:
+                        return jsonify({"reply": resp2.json()['choices'][0]['message']['content']})
+                except:
+                    continue
+
             return jsonify({"reply": f"Ошибка API: {resp.status_code}"}), 500
+
+        return jsonify({"reply": resp.json()['choices'][0]['message']['content']})
+
     except Exception as e:
         return jsonify({"reply": f"Ошибка: {str(e)[:150]}"}), 500
 
